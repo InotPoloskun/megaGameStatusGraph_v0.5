@@ -1,0 +1,124 @@
+body {
+    background-color: transparent;
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+    padding: 20px;
+}
+
+#container {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Центрируем все блоки по центру страницы */
+    gap: 40px;
+}
+
+.block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.block-title {
+    margin: 0;
+    margin-bottom: 10px;
+    font-size: 2.2em;
+    font-weight: 700;
+    text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 3px 3px 5px rgba(0,0,0,0.5);
+}
+
+.block-coins {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 1.8em;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+}
+
+.coin-gif {
+    height: 1.2em;
+    width: auto;
+}
+
+/* 
+ * --- ИСПРАВЛЕНИЕ СИММЕТРИИ (ВНУТРИ БЛОКА) ---
+ * Используем Grid с тремя колонками одинаковой ширины (1fr).
+ * Если одна подпись растянет свою колонку, две другие растянутся симметрично.
+*/
+.charts-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    justify-items: center; /* Центрируем содержимое колонок */
+}
+
+.chart-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.chart {
+    border: 2px solid rgba(0, 0, 0, 0.5);
+    background-color: transparent; 
+    width: 80px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 4px 15px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.segment {
+    height: 60px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    background-color: transparent;
+    transition: background-color 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.8em;
+    font-weight: 700;
+    /* --- ПРАВКА №2: ТЕКСТ ВНУТРИ ГРАФИКОВ --- */
+    color: #333; 
+    text-shadow: none; /* Убираем белую тень, чтобы текст был четче */
+}
+
+.segment:last-child { border-bottom: none; }
+
+.label {
+    margin-top: 15px;
+    /* --- ПРАВКА №3: УВЕЛИЧЕННЫЙ ШРИФТ ПОДПИСЕЙ --- */
+    font-size: 1.7em; 
+    font-weight: 700;
+    text-align: center;
+    text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+/* 
+ * --- ПРАВКА №5: ИСПРАВЛЕННЫЕ СТИЛИ ДЛЯ КАРУСЕЛИ ---
+*/
+#container.carousel-active {
+    position: relative;
+    width: 100%;
+    min-height: 500px; /* Задаем минимальную высоту, чтобы блоки не схлопывались */
+}
+#container.carousel-active .block {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Идеальное центрирование */
+    width: 100%;
+    opacity: 0;
+    transition: opacity 0.7s ease-in-out;
+}
+#container.carousel-active .block.is-visible {
+    opacity: 1;
+}
+
+/* Когда карусель НЕ активна, блоки ведут себя как обычно */
+#container:not(.carousel-active) .block.is-visible {
+    opacity: 1;
+}

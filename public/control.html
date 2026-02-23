@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель Управления Графиками</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body { background: #333; color: #fff; padding: 20px; font-family: 'Montserrat', sans-serif; }
+        .main-container { display: flex; gap: 30px; align-items: flex-start; max-width: 1600px; margin: 0 auto; }
+        .controls-panel { flex: 1; min-width: 450px; background: #444; padding: 20px; border-radius: 8px; }
+        .preview-panel { flex: 2; position: sticky; top: 20px; }
+        h1, h2 { text-align: center; }
+        .block-controls { border: 1px solid #555; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .coin-input-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .coin-input-wrapper label { font-weight: bold; }
+        .coin-input-wrapper input { flex: 1; }
+        .chart-controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .chart-control { text-align: center; }
+        input[type="text"], input[type="number"], input[type="range"] { width: 100%; box-sizing: border-box; padding: 8px; margin-top: 5px; border: 1px solid #666; border-radius: 4px; background: #555; color: #fff; font-family: 'Montserrat', sans-serif; }
+        input[type="range"] { margin-bottom: 5px; }
+        .value-display { font-weight: bold; font-size: 1.2em; color: #aed581; }
+        .btn { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-add { background: #28a745; color: #fff; }
+        .btn-delete { background: #dc3545; color: #fff; }
+        .btn-push { background: #007bff; color: #fff; font-size: 1.2em; width: 100%; padding: 15px; margin-top: 20px; }
+        .status { text-align: center; margin-top: 10px; font-style: italic; color: #ccc; height: 20px; transition: opacity 0.5s ease-in-out; }
+        .status.is-hidden { opacity: 0; }
+        .carousel-control { display: flex; align-items: center; justify-content: center; margin-top: 20px; padding: 10px; background-color: #3a3a3a; border-radius: 8px;}
+        .toggle-switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #6c757d; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #007bff; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        .carousel-control label { margin-left: 12px; font-size: 1.1em; user-select: none; }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="controls-panel">
+            <h1>Панель Управления</h1>
+            <div id="blocks-container"></div>
+            <button class="btn btn-add" onclick="addBlock()">Добавить новый блок</button>
+            <hr style="margin: 20px 0; border-color: #555;">
+            <div class="carousel-control">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="carouselToggle" onchange="toggleCarousel()">
+                    <span class="slider"></span>
+                </label>
+                <label for="carouselToggle">Включить карусель блоков</label>
+            </div>
+            <button class="btn btn-push" onclick="pushToOBS()">ОТОБРАЗИТЬ ИЗМЕНЕНИЯ В OBS</button>
+            <div id="status" class="status"></div>
+        </div>
+        <div class="preview-panel">
+            <h2>Предпросмотр</h2>
+            <div id="container"></div>
+        </div>
+    </div>
+
+    <script>
+        const blocksContainer = document.getElementById('blocks-container');
+        const previewContainer = document.getElementById('container');
+        const statusEl = document.getElementById('status');
+        let localData = {};
+        let password = '';
+        let statusTimeout;
+        const colors = ['transparent', '#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'];
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            password = new URLSearchParams(window.location.search).get('password');
+            if (!password) {
+                document.body.innerHTML = '<h1>Ошибка: Пароль не указан в URL.</h1>';
+                return;
+            }
+            fetchData();
+        });
+
+        function showStatus(message, duration = 3000) {
+            clearTimeout(statusTimeout);
+            statusEl.textContent = message;
+            statusEl.classList.remove('is-hidden');
+            if (duration > 0) {
+                statusTimeout = setTimeout(() => {
+                    statusEl.classList.add('is-hidden');
+                }, duration);
+            }
+        }
+
+        async function fetchData() {
+            try {
+                const response = await fetch('/data');
+                localData = await response.json();
+                renderControls();
+                renderPreview(localData);
+                document.getElementById('carouselToggle').checked = localData.isCarouselActive;
+            } catch (error) {
+                showStatus('Ошибка загрузки данных!', 0);
+            }
+        }
+
+        function renderControls() {
+            blocksContainer.innerHTML = '';
+            localData.blocks.forEach((block, blockIndex) => {
+                const blockEl = document.createElement('div');
+                blockEl.className = 'block-controls';
+                blockEl.innerHTML = `
+                    <div class="block-header">
+                        <input type="text" value="${block.title}" oninput="updateBlockTitle(${blockIndex}, this.value)" placeholder="Название блока">
+                        <button class="btn btn-delete" onclick="deleteBlock(${blockIndex})">Удалить</button>
+                    </div>
+                    <div class="coin-input-wrapper">
+                        <label>Монеты:</label>
+                        <input type="number" value="${block.coins || 0}" oninput="updateBlockCoins(${blockIndex}, this.value)">
+                    </div>
+                    <div class="chart-controls-grid">
+                        ${block.charts.map((chart, chartIndex) => `
+                            <div class="chart-control">
+                                <input type="text" value="${chart.label}" oninput="updateChartLabel(${blockIndex}, ${chartIndex}, this.value)" placeholder="Подпись">
+                                <input type="range" min="0" max="5" value="${chart.value}" oninput="updateChartValue(${blockIndex}, ${chartIndex}, this.value)">
+                                <div class="value-display">${chart.value}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                blocksContainer.appendChild(blockEl);
+            });
+        }
+        
+        function renderPreview(data) {
+            previewContainer.innerHTML = '';
+            data.blocks.forEach(block => {
+                const blockEl = document.createElement('div');
+                blockEl.className = 'block';
+                const titleEl = document.createElement('h2');
+                titleEl.className = 'block-title';
+                titleEl.textContent = block.title;
+                blockEl.appendChild(titleEl);
+                const coinsEl = document.createElement('div');
+                coinsEl.className = 'block-coins';
+                coinsEl.innerHTML = `<span>${block.coins || 0}</span><img src="/coin.gif" alt="coin" class="coin-gif">`;
+                blockEl.appendChild(coinsEl);
+                const chartsContainer = document.createElement('div');
+                chartsContainer.className = 'charts-container';
+                block.charts.forEach(chart => {
+                    const chartWrapper = document.createElement('div');
+                    chartWrapper.className = 'chart-wrapper';
+                    const chartEl = document.createElement('div');
+                    chartEl.className = 'chart';
+                    const segmentLabels = ["", "провал", "плохо", "средне", "норм", "хорошо"];
+                    for (let i = 5; i >= 1; i--) {
+                        const segment = document.createElement('div');
+                        segment.className = 'segment';
+                        if (chart.value >= i) {
+                            segment.style.backgroundColor = colors[i];
+                            segment.textContent = segmentLabels[i];
+                        }
+                        chartEl.appendChild(segment);
+                    }
+                    const labelEl = document.createElement('div');
+                    labelEl.className = 'label';
+                    labelEl.textContent = chart.label;
+                    chartWrapper.appendChild(chartEl);
+                    chartWrapper.appendChild(labelEl);
+                    chartsContainer.appendChild(chartWrapper);
+                });
+                blockEl.appendChild(chartsContainer);
+                previewContainer.appendChild(blockEl);
+            });
+            synchronizeColumnWidths();
+        }
+        
+        function synchronizeColumnWidths() {
+            requestAnimationFrame(() => {
+                const allWrappers = previewContainer.querySelectorAll('.chart-wrapper');
+                if (allWrappers.length === 0) return;
+                let maxWidth = 0;
+                allWrappers.forEach(wrapper => {
+                    const width = wrapper.getBoundingClientRect().width;
+                    if (width > maxWidth) {
+                        maxWidth = width;
+                    }
+                });
+                previewContainer.querySelectorAll('.charts-container').forEach(container => {
+                    container.style.gridTemplateColumns = `repeat(3, ${maxWidth}px)`;
+                });
+            });
+        }
+
+        function updateAndRerender(updateFunction) {
+            updateFunction();
+            renderPreview(localData);
+        }
+
+        function updateBlockTitle(blockIndex, newTitle) { updateAndRerender(() => localData.blocks[blockIndex].title = newTitle); }
+        function updateBlockCoins(blockIndex, newCoins) { updateAndRerender(() => localData.blocks[blockIndex].coins = parseInt(newCoins) || 0); }
+        function updateChartLabel(blockIndex, chartIndex, newLabel) { updateAndRerender(() => localData.blocks[blockIndex].charts[chartIndex].label = newLabel); }
+        function updateChartValue(blockIndex, chartIndex, newValue) {
+            updateAndRerender(() => {
+                const val = parseInt(newValue);
+                localData.blocks[blockIndex].charts[chartIndex].value = val;
+                document.querySelectorAll('.block-controls')[blockIndex].querySelectorAll('.value-display')[chartIndex].textContent = val;
+            });
+        }
+
+        function addBlock() {
+            localData.blocks.push({
+                id: Date.now(), title: "Новый блок", coins: 0,
+                charts: [{ label: "A", value: 0 }, { label: "B", value: 0 }, { label: "C", value: 0 }]
+            });
+            renderControls();
+            renderPreview(localData);
+        }
+
+        function deleteBlock(blockIndex) {
+            if (confirm('Удалить блок?')) {
+                localData.blocks.splice(blockIndex, 1);
+                renderControls();
+                renderPreview(localData);
+            }
+        }
+        
+        function toggleCarousel() {
+            const checkbox = document.getElementById('carouselToggle');
+            localData.isCarouselActive = checkbox.checked;
+            showStatus(`Карусель ${localData.isCarouselActive ? 'ВКЛ' : 'ВЫКЛ'}. Нажмите "Отобразить" для применения.`);
+        }
+
+        async function pushToOBS() {
+            showStatus('Сохранение и отправка в OBS...', 0);
+            const updateResponse = await fetch('/update?password=' + password, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: password, data: localData })
+            });
+            if (!updateResponse.ok) {
+                showStatus('Ошибка сохранения данных!', 5000);
+                return;
+            }
+            const pushResponse = await fetch('/push?password=' + password, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: password })
+            });
+            if (pushResponse.ok) {
+                showStatus('Команда на обновление отправлена в OBS!');
+            } else {
+                showStatus('Ошибка отправки команды!', 5000);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>OBS Display</title>
+    <!-- ПРАВКА №1: ВОЗВРАЩАЕМ ШРИФТЫ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css"> 
+</head>
+<body>
+    <div id="container"></div>
+
+    <script>
+        const container = document.getElementById('container');
+        const colors = ['transparent', '#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'];
+        let carouselInterval = null;
+        let currentIndex = 0;
+        const CAROUSEL_DELAY = 5000;
+
+        function render(data) {
+            container.innerHTML = '';
+            data.blocks.forEach(blockData => {
+                const blockEl = document.createElement('div');
+                blockEl.className = 'block';
+                const titleEl = document.createElement('h2');
+                titleEl.className = 'block-title';
+                titleEl.textContent = blockData.title;
+                blockEl.appendChild(titleEl);
+                const coinsEl = document.createElement('div');
+                coinsEl.className = 'block-coins';
+                coinsEl.innerHTML = `<span>${blockData.coins || 0}</span><img src="/coin.gif" alt="coin" class="coin-gif">`;
+                blockEl.appendChild(coinsEl);
+                const chartsContainer = document.createElement('div');
+                chartsContainer.className = 'charts-container';
+                blockData.charts.forEach(chart => {
+                    const chartWrapper = document.createElement('div');
+                    chartWrapper.className = 'chart-wrapper';
+                    const chartEl = document.createElement('div');
+                    chartEl.className = 'chart';
+                    const segmentLabels = ["", "провал", "плохо", "средне", "норм", "хорошо"];
+                    for (let i = 5; i >= 1; i--) {
+                        const segment = document.createElement('div');
+                        segment.className = 'segment';
+                        if (chart.value >= i) {
+                            segment.style.backgroundColor = colors[i];
+                            segment.textContent = segmentLabels[i];
+                        }
+                        chartEl.appendChild(segment);
+                    }
+                    const labelEl = document.createElement('div');
+                    labelEl.className = 'label';
+                    labelEl.textContent = chart.label;
+                    chartWrapper.appendChild(chartEl);
+                    chartWrapper.appendChild(labelEl);
+                    chartsContainer.appendChild(chartWrapper);
+                });
+                blockEl.appendChild(chartsContainer);
+                container.appendChild(blockEl);
+            });
+        }
+        
+        /* --- ПРАВКА №4: НОВАЯ ФУНКЦИЯ ДЛЯ ГЛОБАЛЬНОЙ СИММЕТРИИ --- */
+        function synchronizeColumnWidths() {
+            // Даем браузеру мгновение на отрисовку, чтобы размеры были точными
+            requestAnimationFrame(() => {
+                const allWrappers = document.querySelectorAll('.chart-wrapper');
+                if (allWrappers.length === 0) return;
+
+                let maxWidth = 0;
+                // Находим максимальную ширину среди всех оберток графиков на странице
+                allWrappers.forEach(wrapper => {
+                    const width = wrapper.getBoundingClientRect().width;
+                    if (width > maxWidth) {
+                        maxWidth = width;
+                    }
+                });
+
+                // Применяем эту максимальную ширину ко всем контейнерам
+                const allChartContainers = document.querySelectorAll('.charts-container');
+                allChartContainers.forEach(container => {
+                    container.style.gridTemplateColumns = `repeat(3, ${maxWidth}px)`;
+                });
+            });
+        }
+
+        function showAllBlocks() {
+            container.classList.remove('carousel-active');
+            document.querySelectorAll('.block').forEach(b => b.classList.add('is-visible'));
+        }
+
+        function nextSlide() {
+            const allBlocks = document.querySelectorAll('.block');
+            if (allBlocks.length === 0) return;
+            allBlocks[currentIndex].classList.remove('is-visible');
+            currentIndex = (currentIndex + 1) % allBlocks.length;
+            allBlocks[currentIndex].classList.add('is-visible');
+        }
+
+        function startCarousel() {
+            stopCarousel();
+            container.classList.add('carousel-active');
+            const allBlocks = document.querySelectorAll('.block');
+            if (allBlocks.length <= 1) {
+                showAllBlocks();
+                return;
+            }
+            allBlocks.forEach(b => b.classList.remove('is-visible'));
+            currentIndex = 0;
+            allBlocks[0].classList.add('is-visible'); // Показываем первый слайд
+            carouselInterval = setInterval(nextSlide, CAROUSEL_DELAY);
+        }
+
+        function stopCarousel() {
+            clearInterval(carouselInterval);
+            carouselInterval = null;
+            showAllBlocks();
+        }
+
+        async function fetchDataAndReinit() {
+            try {
+                const response = await fetch('/data');
+                const data = await response.json();
+                render(data);
+                synchronizeColumnWidths(); // <-- ВЫЗЫВАЕМ СИНХРОНИЗАЦИЮ
+                if (data.isCarouselActive) {
+                    startCarousel();
+                } else {
+                    stopCarousel();
+                }
+            } catch (error) { console.error("Failed to fetch data:", error); }
+        }
+
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                if (message.type === 'update') {
+                    fetchDataAndReinit();
+                }
+            };
+            ws.onclose = () => { setTimeout(connectWebSocket, 3000); };
+            ws.onerror = (err) => { ws.close(); };
+        }
+
+        fetchDataAndReinit();
+        connectWebSocket();
+    </script>
+</body>
+</html>
